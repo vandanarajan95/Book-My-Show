@@ -1,27 +1,20 @@
-# Use Node.js 18 (or your Jenkins-configured version)
-FROM node:18
-
-# Set working directory
+# Step 1: Use Node to build the app
+FROM node:18-alpine AS builder
 WORKDIR /app
-
-# Copy package.json and package-lock.json
-COPY package.json package-lock.json ./
-
-# Force install a compatible PostCSS version to fix the issue
-RUN npm install postcss@8.4.21 postcss-safe-parser@6.0.0 --legacy-peer-deps
-
-# Install dependencies
-RUN npm install
-
-# Copy the entire project
+COPY package*.json ./
+# Use --legacy-peer-deps to ignore version conflicts
+RUN npm install --legacy-peer-deps
 COPY . .
+RUN npm run build
 
-# Expose port 3000
+# Step 2: Use a clean, tiny image to serve the build
+FROM node:18-alpine
+WORKDIR /app
+# Install a simple web server
+RUN npm install -g serve
+# Only copy the final built files from the builder
+COPY --from=builder /app/build ./build
+
 EXPOSE 3000
-
-# Set environment variable to prevent OpenSSL errors
-ENV NODE_OPTIONS=--openssl-legacy-provider
-ENV PORT=3000
-
-# Start the application
-CMD ["npm", "start"]
+# Serve the build folder on port 3000
+CMD ["serve", "-s", "build", "-l", "3000"]
